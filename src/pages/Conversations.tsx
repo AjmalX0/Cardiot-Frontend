@@ -26,6 +26,7 @@ import { useAudioRecorder } from 'react-audio-voice-recorder';
 import type { WhatsAppContact, WhatsAppMessage, DashboardConversation, DashboardMessage } from "../types/whatsapp";
 import { formatDistanceToNow } from "date-fns";
 import * as api from '../lib/api';
+import { useLocation } from "react-router-dom";
 
 const statusColors: Record<string, string> = {
   ongoing: "bg-blue-100 text-blue-700",
@@ -100,6 +101,8 @@ const Conversations = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"All" | "Unread" | "Active" | "Closed">("All");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const locationState = location.state as { phone?: string } | null;
 
   // Stats & Mutations
   const queryClient = useQueryClient();
@@ -313,11 +316,18 @@ const Conversations = () => {
 
   // Effects
   useEffect(() => {
-    // Only auto-select first conversation on desktop
+    if (locationState?.phone && locationState.phone !== selectedPhone) {
+      setSelectedPhone(locationState.phone);
+      // Clean up the location state so it doesn't get stuck if we click away
+      window.history.replaceState({}, document.title);
+      return; // Skip the auto-select below if we had a forced selection
+    }
+
+    // Only auto-select first conversation on desktop if no phone is selected
     if (!selectedPhone && conversations.length > 0 && window.innerWidth >= 768) {
       setSelectedPhone(conversations[0].id);
     }
-  }, [contactsLoading, conversations.length]);
+  }, [contactsLoading, conversations.length, locationState?.phone]);
 
   useEffect(() => {
     if (selectedPhone) {
