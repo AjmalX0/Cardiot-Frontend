@@ -31,16 +31,13 @@ const Login = () => {
                     setLoading(false);
                     return;
                 }
-
                 await signup({ email, password, fullName });
-
                 toast({ title: 'Success', description: 'Account created! Please check your email to confirm.' });
             } else {
                 const response = await login({ email, password });
                 if (response.session) {
                     updateAuth(response.session);
                 } else {
-                    // if it doesn't return session immediately, maybe shape is different or error
                     updateAuth(response);
                 }
                 navigate('/');
@@ -80,7 +77,6 @@ const Login = () => {
                             />
                         </div>
                     )}
-
                     <div>
                         <label className="text-sm font-medium text-slate-700 block mb-1">Email Address</label>
                         <input
@@ -91,7 +87,6 @@ const Login = () => {
                             placeholder="name@company.com"
                         />
                     </div>
-
                     <div>
                         <label className="text-sm font-medium text-slate-700 block mb-1">Password</label>
                         <input
@@ -102,7 +97,6 @@ const Login = () => {
                             placeholder="••••••••"
                         />
                     </div>
-
                     <button
                         type="submit"
                         disabled={loading}
