@@ -147,7 +147,7 @@ const SegmentDetail: React.FC = () => {
                         <div
                             key={contact.id}
                             className="card hover:shadow-md transition-shadow cursor-pointer"
-                            onClick={() => navigate('/conversations')}
+                            onClick={() => navigate('/conversations', { state: { phone: contact.phone_number } })}
                         >
                             <div className="flex items-start justify-between mb-3">
                                 <div className="flex-1">
