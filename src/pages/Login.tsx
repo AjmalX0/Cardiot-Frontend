@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Command } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from '@/lib/AuthContext';
-import { login, signup } from '@/lib/api';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -14,7 +13,6 @@ const Login = () => {
 
     const navigate = useNavigate();
     const { toast } = useToast();
-    const { updateAuth } = useAuth();
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,19 +29,29 @@ const Login = () => {
                     setLoading(false);
                     return;
                 }
-                await signup({ email, password, fullName });
+
+                const { error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: fullName,
+                            avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=random`
+                        }
+                    }
+                });
+
+                if (error) throw error;
                 toast({ title: 'Success', description: 'Account created! Please check your email to confirm.' });
+                // Depending on Supabase settings, user might be logged in or need confirmation.
+                // Usually need confirmation if enabled.
             } else {
-                const response = await login({ email, password });
-                if (response.session) {
-                    updateAuth(response.session);
-                } else {
-                    updateAuth(response);
-                }
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) throw error;
                 navigate('/');
             }
         } catch (error: any) {
-            toast({ title: 'Authentication Failed', description: error.response?.data?.error || error.message, variant: 'destructive' });
+            toast({ title: 'Authentication Failed', description: error.message, variant: 'destructive' });
         } finally {
             setLoading(false);
         }
@@ -77,6 +85,7 @@ const Login = () => {
                             />
                         </div>
                     )}
+
                     <div>
                         <label className="text-sm font-medium text-slate-700 block mb-1">Email Address</label>
                         <input
@@ -87,6 +96,7 @@ const Login = () => {
                             placeholder="name@company.com"
                         />
                     </div>
+
                     <div>
                         <label className="text-sm font-medium text-slate-700 block mb-1">Password</label>
                         <input
@@ -97,6 +107,7 @@ const Login = () => {
                             placeholder="••••••••"
                         />
                     </div>
+
                     <button
                         type="submit"
                         disabled={loading}
