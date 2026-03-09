@@ -10,41 +10,6 @@ const api = axios.create({
     },
 });
 
-api.interceptors.request.use((config) => {
-    const sessionStr = localStorage.getItem('supabase_session');
-    if (sessionStr) {
-        try {
-            const session = JSON.parse(sessionStr);
-            if (session?.session?.access_token) {
-                config.headers.Authorization = `Bearer ${session.session.access_token}`;
-            }
-        } catch (e) { }
-    }
-    return config;
-});
-
-// Auth
-export const login = async (data: any) => {
-    const response = await api.post('/api/auth/login', data);
-    return response.data;
-};
-
-export const signup = async (data: any) => {
-    const response = await api.post('/api/auth/signup', data);
-    return response.data;
-};
-
-export const logout = async () => {
-    const response = await api.post('/api/auth/logout');
-    return response.data;
-};
-
-export const getSession = async () => {
-    const response = await api.get('/api/auth/session');
-    return response.data;
-};
-
-
 // Contacts
 export const getContacts = async (): Promise<WhatsAppContact[]> => {
     const response = await api.get('/api/contacts');
@@ -332,6 +297,29 @@ export const getSourceBreakdown = async (): Promise<{ source: string; count: num
 
 export const getContactsBySource = async (source: string): Promise<any[]> => {
     const response = await api.get(`/api/sources/${source}/contacts`);
+    return response.data;
+};
+
+// ========== META TEMPLATE MANAGEMENT ==========
+
+export const listMetaTemplates = async (params?: { status?: string; category?: string }): Promise<{ templates: any[]; total: number }> => {
+    const response = await api.get('/api/meta-templates', { params });
+    return response.data;
+};
+
+export const createMetaTemplate = async (data: {
+    name: string;
+    category: string;
+    language: string;
+    components: any[];
+    allow_category_change?: boolean;
+}): Promise<any> => {
+    const response = await api.post('/api/meta-templates', data);
+    return response.data;
+};
+
+export const deleteMetaTemplate = async (name: string): Promise<any> => {
+    const response = await api.delete(`/api/meta-templates/${name}`);
     return response.data;
 };
 
