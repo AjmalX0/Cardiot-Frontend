@@ -11,6 +11,7 @@ import Segments from "./pages/Segments";
 import SegmentDetail from "./pages/SegmentDetail";
 import Agents from "./pages/Agents";
 import Sources from "./pages/Sources";
+import TemplateManager from "./pages/TemplateManager";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/segments/:id" element={<SegmentDetail />} />
               <Route path="/agents" element={<Agents />} />
               <Route path="/sources" element={<Sources />} />
+              <Route path="/templates" element={<TemplateManager />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
