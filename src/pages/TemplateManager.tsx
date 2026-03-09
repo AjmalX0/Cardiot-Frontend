@@ -6,6 +6,25 @@ import {
 } from "lucide-react";
 import * as api from "../lib/api";
 
+// ─── ToggleSwitch component ───────────────────────────────────────────────────
+function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onChange}
+            className={`relative inline-flex items-center flex-shrink-0 h-6 w-11 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enabled ? 'bg-blue-600' : 'bg-slate-200'
+                }`}
+            role="switch"
+            aria-checked={enabled}
+        >
+            <span
+                className={`inline-block w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${enabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+            />
+        </button>
+    );
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ComponentType = "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
@@ -589,12 +608,7 @@ const TemplateManager = () => {
                                     <Image className="w-4 h-4 text-slate-400" /> Header
                                     <span className="text-xs text-slate-400 font-normal">(optional)</span>
                                 </h3>
-                                <button
-                                    onClick={() => setField("headerEnabled", !form.headerEnabled)}
-                                    className={`relative w-10 h-5 rounded-full transition-colors ${form.headerEnabled ? "bg-blue-600" : "bg-slate-200"}`}
-                                >
-                                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.headerEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
-                                </button>
+                                <ToggleSwitch enabled={form.headerEnabled} onChange={() => setField("headerEnabled", !form.headerEnabled)} />
                             </div>
 
                             {form.headerEnabled && (
@@ -669,12 +683,7 @@ const TemplateManager = () => {
                                     <List className="w-4 h-4 text-slate-400" /> Footer
                                     <span className="text-xs text-slate-400 font-normal">(optional)</span>
                                 </h3>
-                                <button
-                                    onClick={() => setField("footerEnabled", !form.footerEnabled)}
-                                    className={`relative w-10 h-5 rounded-full transition-colors ${form.footerEnabled ? "bg-blue-600" : "bg-slate-200"}`}
-                                >
-                                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.footerEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
-                                </button>
+                                <ToggleSwitch enabled={form.footerEnabled} onChange={() => setField("footerEnabled", !form.footerEnabled)} />
                             </div>
                             {form.footerEnabled && (
                                 <input
@@ -695,12 +704,7 @@ const TemplateManager = () => {
                                     <Send className="w-4 h-4 text-slate-400" /> Buttons
                                     <span className="text-xs text-slate-400 font-normal">(up to 3)</span>
                                 </h3>
-                                <button
-                                    onClick={() => setField("buttonsEnabled", !form.buttonsEnabled)}
-                                    className={`relative w-10 h-5 rounded-full transition-colors ${form.buttonsEnabled ? "bg-blue-600" : "bg-slate-200"}`}
-                                >
-                                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.buttonsEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
-                                </button>
+                                <ToggleSwitch enabled={form.buttonsEnabled} onChange={() => setField("buttonsEnabled", !form.buttonsEnabled)} />
                             </div>
 
                             {form.buttonsEnabled && (
