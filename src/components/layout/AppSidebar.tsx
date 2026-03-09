@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MapPin,
+  Sparkles,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -27,6 +28,7 @@ const navItems = [
   { icon: Users, label: "Segments", path: "/segments" },
   { icon: UserCheck, label: "Agents", path: "/agents" },
   { icon: MapPin, label: "Sources", path: "/sources" },
+  { icon: Sparkles, label: "Templates", path: "/templates" },
 ];
 
 export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: SidebarContentProps) {
