@@ -1,32 +1,37 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Search,
-  Phone,
-  MoreVertical,
   Paperclip,
   Send,
   Smile,
   Image,
-  Mic,
-  MicOff,
   CheckCheck,
   Check,
   Loader2,
   X,
   FileText,
   MessageSquare,
-  StopCircle,
   ChevronLeft,
-  UserCheck,
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useContacts, useMessages, useSendMessage, useResetUnreadCount, useUpdateContactStatus, useUpdateContactTemperature, useSendMediaMessage } from "../hooks/useWhatsApp";
-import { useAudioRecorder } from 'react-audio-voice-recorder';
 import type { WhatsAppContact, WhatsAppMessage, DashboardConversation, DashboardMessage } from "../types/whatsapp";
 import { formatDistanceToNow } from "date-fns";
 import * as api from '../lib/api';
-import { useLocation } from "react-router-dom";
+
+// Source display helpers
+const sourceLabels: Record<string, string> = {
+  instagram: '📸 Instagram',
+  meta_ads: '📊 Meta Ads',
+  qr_code: '🔲 QR Code',
+  facebook: '📘 Facebook',
+  whatsapp_link: '💬 WhatsApp Link',
+  referral: '🤝 Referral',
+  website: '🌐 Website',
+  other: '🏷️ Other',
+};
 
 const statusColors: Record<string, string> = {
   ongoing: "bg-blue-100 text-blue-700",
@@ -76,6 +81,14 @@ const mapContactToConversation = (contact: WhatsAppContact): DashboardConversati
   };
 };
 
+// Texts that are internal placeholders — never show them as visible message body
+const PLACEHOLDER_RE = /^\[.*\]$/;
+const isPlaceholder = (t?: string | null) => !t || PLACEHOLDER_RE.test(t.trim());
+
+// File-type media that should show a download link
+const FILE_MEDIA_TYPES = new Set(['document', 'application', 'pdf', 'text']);
+const isFileType = (type?: string) => type && (FILE_MEDIA_TYPES.has(type) || (!['image', 'video', 'audio'].includes(type)));
+
 // Map WhatsApp message to dashboard message format
 const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
   const time = new Date(msg.timestamp * 1000).toLocaleTimeString('en-US', {
@@ -84,6 +97,9 @@ const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
     hour12: true
   });
 
+  const mediaTypes = new Set(['image', 'video', 'audio', 'document', 'sticker']);
+  const isMedia = mediaTypes.has(msg.message_type);
+
   return {
     id: msg.whatsapp_message_id,
     text: msg.message_text,
@@ -91,18 +107,19 @@ const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
     sender: msg.direction === 'outgoing' ? 'agent' : 'customer',
     status: msg.status as any,
     mediaUrl: msg.media_url || undefined,
-    mediaType: msg.message_type === 'text' || msg.message_type === 'interactive' || msg.message_type === 'button' ? undefined : msg.message_type as any,
+    mediaType: (msg.message_type === 'text' || msg.message_type === 'interactive' || msg.message_type === 'button') ? undefined : msg.message_type as any,
+    // carry original filename for caption display
+    fileName: isMedia && !isPlaceholder(msg.message_text) ? msg.message_text : undefined,
   };
 };
 
 const Conversations = () => {
+  const location = useLocation();
   const [selectedPhone, setSelectedPhone] = useState<string>("");
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"All" | "Unread" | "Active" | "Closed">("All");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const location = useLocation();
-  const locationState = location.state as { phone?: string } | null;
 
   // Stats & Mutations
   const queryClient = useQueryClient();
@@ -120,38 +137,31 @@ const Conversations = () => {
     mutationFn: ({ phoneNumber, agentId }: { phoneNumber: string; agentId: string | null }) =>
       api.assignAgentToContact(phoneNumber, agentId),
     onMutate: async ({ phoneNumber, agentId }) => {
-      // Pause background polling so it doesn't race us
+      // Cancel any in-flight refetches so they don't overwrite the optimistic update
       await queryClient.cancelQueries({ queryKey: ['contacts'] });
       const previousContacts = queryClient.getQueryData(['contacts']);
-      // Apply change to cache immediately so UI updates without waiting
+      // Apply change to cache immediately so UI updates without waiting for the API call
       queryClient.setQueryData(['contacts'], (old: any) =>
         Array.isArray(old)
           ? old.map((c: any) =>
-            c.phone_number === phoneNumber ? { ...c, assigned_agent_id: agentId } : c
+            c.phone_number === phoneNumber
+              ? { ...c, assigned_agent_id: agentId || null }
+              : c
           )
           : old
       );
       return { previousContacts };
     },
     onError: (err, _vars, context) => {
+      // Roll back optimistic update on error
       console.error('❌ Agent assignment failed:', err);
       if (context?.previousContacts) {
         queryClient.setQueryData(['contacts'], context.previousContacts);
       }
     },
-    onSuccess: (_data, { phoneNumber, agentId }) => {
-      // Confirm the optimistic update with real data
-      queryClient.setQueryData(['contacts'], (old: any) =>
-        Array.isArray(old)
-          ? old.map((c: any) =>
-            c.phone_number === phoneNumber ? { ...c, assigned_agent_id: agentId } : c
-          )
-          : old
-      );
-    },
     onSettled: () => {
-      // Force an immediate fresh fetch to sync with DB
-      queryClient.refetchQueries({ queryKey: ['contacts'] });
+      // Always sync with DB after the mutation settles (success or error)
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
     },
   });
 
@@ -162,26 +172,6 @@ const Conversations = () => {
   const [isSendingMedia, setIsSendingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-
-  // Audio Recorder - use ogg/opus which WhatsApp supports
-  // Prefer audio/ogg;codecs=opus, fallback to audio/mp4
-  const preferredMimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-    ? 'audio/ogg;codecs=opus'
-    : MediaRecorder.isTypeSupported('audio/mp4')
-      ? 'audio/mp4'
-      : 'audio/webm'; // last resort (may fail on WhatsApp)
-
-  const {
-    startRecording,
-    stopRecording,
-    recordingBlob,
-    isRecording,
-    recordingTime,
-  } = useAudioRecorder(
-    undefined,  // audioTrackConstraints
-    undefined,  // onNotAllowedOrFound
-    { mimeType: preferredMimeType }  // mediaRecorderOptions
-  );
 
   // Handlers
   const handleEmojiClick = (emojiData: any) => {
@@ -256,46 +246,6 @@ const Conversations = () => {
     }
   };
 
-  // When recording stops, send the audio blob automatically
-  useEffect(() => {
-    if (!recordingBlob || !selectedPhone) return;
-    const sendAudio = async () => {
-      setIsSendingMedia(true);
-      try {
-        // Get the actual MIME type from the blob
-        const rawMime = recordingBlob.type || preferredMimeType;
-        // Strip codec info for file extension determination
-        const baseMime = rawMime.split(';')[0];
-        // Map to WhatsApp-supported extension
-        let ext = '.ogg';
-        let finalMime = 'audio/ogg';
-        if (baseMime === 'audio/mp4') { ext = '.mp4'; finalMime = 'audio/mp4'; }
-        else if (baseMime === 'audio/mpeg') { ext = '.mp3'; finalMime = 'audio/mpeg'; }
-        else if (baseMime === 'audio/ogg') { ext = '.ogg'; finalMime = 'audio/ogg'; }
-        else if (baseMime === 'audio/webm') {
-          // WebM is NOT supported by WhatsApp - try to re-wrap as ogg
-          // We can't truly transcode in browser, but we can try ogg container
-          ext = '.ogg';
-          finalMime = 'audio/ogg';
-        }
-
-        const file = new File([recordingBlob], `voice-message${ext}`, { type: finalMime });
-        await sendMediaMutation.mutateAsync({
-          file,
-          to: selectedPhone,
-          caption: ''
-        });
-      } catch (error: any) {
-        console.error('Failed to send audio:', error);
-        const errMsg = error?.response?.data?.details?.error?.message || error?.message || 'Unknown error';
-        alert(`Failed to send voice message: ${errMsg}\n\nTip: Your browser may not support ogg recording. Try Chrome or Firefox.`);
-      } finally {
-        setIsSendingMedia(false);
-      }
-    };
-    sendAudio();
-  }, [recordingBlob]);
-
   // Derived Data
   const conversations = contacts.map(contact => mapContactToConversation(contact));
   const dashboardMessages = messages.map(msg => mapMessageToDashboard(msg));
@@ -315,19 +265,26 @@ const Conversations = () => {
   });
 
   // Effects
-  useEffect(() => {
-    if (locationState?.phone && locationState.phone !== selectedPhone) {
-      setSelectedPhone(locationState.phone);
-      // Clean up the location state so it doesn't get stuck if we click away
-      window.history.replaceState({}, document.title);
-      return; // Skip the auto-select below if we had a forced selection
-    }
 
-    // Only auto-select first conversation on desktop if no phone is selected
+  // Handle navigation from SegmentDetail - if router state has a phoneNumber, select it immediately
+  useEffect(() => {
+    const state = location.state as { phoneNumber?: string } | null;
+    if (state?.phoneNumber) {
+      setSelectedPhone(state.phoneNumber);
+      // Clear the navigation state so that back-navigation doesn't re-trigger this
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
+
+  // Auto-select first conversation on desktop (only if nothing is already selected)
+  useEffect(() => {
+    const state = location.state as { phoneNumber?: string } | null;
+    // Skip auto-select if we navigated here with a specific phone
+    if (state?.phoneNumber) return;
     if (!selectedPhone && conversations.length > 0 && window.innerWidth >= 768) {
       setSelectedPhone(conversations[0].id);
     }
-  }, [contactsLoading, conversations.length, locationState?.phone]);
+  }, [contactsLoading, conversations.length]);
 
   useEffect(() => {
     if (selectedPhone) {
@@ -496,26 +453,61 @@ const Conversations = () => {
                       {/* Media rendering */}
                       {msg.mediaType && (
                         <div className="mb-2 rounded-lg overflow-hidden">
-                          {msg.mediaType === 'image' && msg.mediaUrl ? (
-                            <img src={msg.mediaUrl} alt="media" className="max-w-full max-h-64 object-contain rounded-lg" />
-                          ) : msg.mediaType === 'audio' && msg.mediaUrl ? (
-                            <audio controls src={msg.mediaUrl} className="w-48 h-8" />
-                          ) : msg.mediaType === 'video' && msg.mediaUrl ? (
-                            <video controls src={msg.mediaUrl} className="max-w-full max-h-48 rounded-lg" />
-                          ) : msg.mediaUrl ? (
-                            <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs p-2 bg-black/10 rounded-lg">
-                              <FileText className="w-4 h-4" /> Download File
-                            </a>
+                          {msg.mediaType === 'image' ? (
+                            msg.mediaUrl ? (
+                              <img src={msg.mediaUrl} alt="media" className="max-w-full max-h-64 object-contain rounded-lg" />
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs p-2 bg-black/10 rounded-lg opacity-70">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>📷 Image — processing…</span>
+                              </div>
+                            )
+                          ) : msg.mediaType === 'video' ? (
+                            msg.mediaUrl ? (
+                              <video controls src={msg.mediaUrl} className="max-w-full max-h-48 rounded-lg" />
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs p-2 bg-black/10 rounded-lg opacity-70">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>🎥 Video — processing…</span>
+                              </div>
+                            )
+                          ) : msg.mediaType === 'audio' ? (
+                            msg.mediaUrl ? (
+                              <audio controls src={msg.mediaUrl} className="w-48 h-8" />
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs p-2 bg-black/10 rounded-lg opacity-70">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>🎤 Voice message — processing…</span>
+                              </div>
+                            )
                           ) : (
-                            // No URL yet (just sent, waiting for webhook)
-                            <div className="flex items-center gap-2 text-xs p-2 bg-black/10 rounded-lg opacity-70">
-                              <FileText className="w-4 h-4" />
-                              <span>{msg.mediaType === 'audio' ? '🎤 Voice message' : msg.mediaType === 'image' ? '📷 Image' : msg.mediaType === 'video' ? '🎥 Video' : '📎 Document'} (sending...)</span>
-                            </div>
+                            /* Document / PDF / any other file type */
+                            msg.mediaUrl ? (
+                              <a
+                                href={msg.mediaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-black/10 rounded-lg hover:bg-black/20 transition-colors"
+                              >
+                                <FileText className="w-5 h-5 flex-shrink-0" />
+                                <span className="text-xs font-medium truncate max-w-[180px]">
+                                  {(msg as any).fileName || '📎 Download File'}
+                                </span>
+                                <span className="text-[10px] ml-auto opacity-70 flex-shrink-0">↓ Open</span>
+                              </a>
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs p-2 bg-black/10 rounded-lg opacity-70">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>📎 {(msg as any).fileName || 'File'} — processing…</span>
+                              </div>
+                            )
                           )}
                         </div>
                       )}
-                      {msg.text && <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
+                      {/* Show text only if it's not a bracketed placeholder like [Image], [Document], [unsupported] */}
+                      {!isPlaceholder(msg.text) && msg.text && (
+                        <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      )}
                       <div className={`flex items-center gap-1 mt-1 justify-end ${msg.sender === "agent" ? "text-blue-100/80" : "text-slate-400"}`}>
                         <span className="text-[10px] font-medium">{msg.time}</span>
                         {msg.sender === "agent" && (
@@ -553,14 +545,7 @@ const Conversations = () => {
               </div>
             )}
 
-            {/* Recording indicator */}
-            {isRecording && (
-              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-sm font-medium text-red-700">Recording voice message... {recordingTime}s</span>
-                <span className="text-xs text-red-500 ml-auto">Click 🛑 to stop & send</span>
-              </div>
-            )}
+
 
             {/* Emoji Picker */}
             {showEmojiPicker && (
@@ -603,34 +588,20 @@ const Conversations = () => {
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder={isRecording ? "Recording... click stop to send" : selectedFile ? "Add a caption (optional)..." : "Type a message..."}
-                className={`flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400 ${isRecording ? 'border-red-300 bg-red-50' : ''}`}
-                disabled={isRecording || !selectedPhone}
+                placeholder={selectedFile ? "Add a caption (optional)..." : "Type a message..."}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
+                disabled={!selectedPhone}
               />
 
-              {/* Send / Record button */}
-              {(message.trim() || selectedFile) ? (
-                <button
-                  onClick={selectedFile ? handleSendMedia : handleSendMessage}
-                  disabled={isSending}
-                  className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                  title="Send"
-                >
-                  {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                </button>
-              ) : (
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={!selectedPhone || isSendingMedia}
-                  className={`p-3 rounded-lg transition-all shadow-sm disabled:opacity-60 ${isRecording
-                    ? "bg-red-500 text-white hover:bg-red-600 shadow-red-200"
-                    : "bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200"}`}
-                  title={isRecording ? "Stop recording & send" : "Record voice message"}
-                >
-                  {isSendingMedia ? <Loader2 className="w-5 h-5 animate-spin" /> :
-                    isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-              )}
+              {/* Send button */}
+              <button
+                onClick={selectedFile ? handleSendMedia : handleSendMessage}
+                disabled={isSending || (!message.trim() && !selectedFile)}
+                className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Send"
+              >
+                {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         </div>
@@ -684,45 +655,47 @@ const Conversations = () => {
                 })()}
                 <select
                   value={contacts.find((c: any) => c.phone_number === selectedPhone)?.assigned_agent_id || ''}
-                  onChange={(e) => assignAgentMutation.mutate({
-                    phoneNumber: selectedPhone,
-                    agentId: e.target.value || null
-                  })}
-                  className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
+                  onChange={(e) => {
+                    const newAgentId = e.target.value || null;
+                    assignAgentMutation.mutate({
+                      phoneNumber: selectedPhone,
+                      agentId: newAgentId
+                    });
+                  }}
+                  disabled={assignAgentMutation.isPending}
+                  className={`w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium transition-opacity ${assignAgentMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">No Agent Assigned</option>
                   {agents.map((agent: any) => (
                     <option key={agent.id} value={agent.id}>{agent.name}</option>
                   ))}
                 </select>
+                {assignAgentMutation.isPending && (
+                  <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Assigning agent...
+                  </p>
+                )}
+                {assignAgentMutation.isError && (
+                  <p className="text-xs text-red-500 mt-1">Failed to assign agent. Please try again.</p>
+                )}
               </div>
             </div>
 
-            {/* Source Section */}
+            {/* Source Section — read-only display */}
             <div>
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Lead Source</label>
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                <select
-                  value={contacts.find((c: any) => c.phone_number === selectedPhone)?.source || ''}
-                  onChange={(e) => {
-                    const sourceVal = e.target.value || null;
-                    api.updateContactSource(selectedPhone, sourceVal).then(() => {
-                      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-                      queryClient.invalidateQueries({ queryKey: ['source-breakdown'] });
-                    });
-                  }}
-                  className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
-                >
-                  <option value="">Unknown / Not Set</option>
-                  <option value="instagram">📸 Instagram</option>
-                  <option value="meta_ads">📊 Meta Ads</option>
-                  <option value="qr_code">🔲 QR Code</option>
-                  <option value="facebook">📘 Facebook</option>
-                  <option value="whatsapp_link">💬 WhatsApp Link</option>
-                  <option value="referral">🤝 Referral</option>
-                  <option value="website">🌐 Website</option>
-                  <option value="other">🏷️ Other</option>
-                </select>
+                {(() => {
+                  const src = contacts.find((c: any) => c.phone_number === selectedPhone)?.source;
+                  const label = src ? (sourceLabels[src] ?? src) : null;
+                  return label ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-700 shadow-sm">
+                      {label}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-400 font-medium">Unknown / Not Set</span>
+                  );
+                })()}
               </div>
             </div>
 
