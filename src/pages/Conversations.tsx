@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+
+// Backend base URL — used to resolve relative /media/ paths
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '');
 import {
   Search,
   Paperclip,
@@ -89,6 +92,13 @@ const isPlaceholder = (t?: string | null) => !t || PLACEHOLDER_RE.test(t.trim())
 const FILE_MEDIA_TYPES = new Set(['document', 'application', 'pdf', 'text']);
 const isFileType = (type?: string) => type && (FILE_MEDIA_TYPES.has(type) || (!['image', 'video', 'audio'].includes(type)));
 
+// Helper: resolve relative /media/ paths to full backend URL
+const resolveMediaUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 // Map WhatsApp message to dashboard message format
 const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
   const time = new Date(msg.timestamp * 1000).toLocaleTimeString('en-US', {
@@ -106,7 +116,7 @@ const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
     time,
     sender: msg.direction === 'outgoing' ? 'agent' : 'customer',
     status: msg.status as any,
-    mediaUrl: msg.media_url || undefined,
+    mediaUrl: resolveMediaUrl(msg.media_url),
     mediaType: (msg.message_type === 'text' || msg.message_type === 'interactive' || msg.message_type === 'button') ? undefined : msg.message_type as any,
     // carry original filename for caption display
     fileName: isMedia && !isPlaceholder(msg.message_text) ? msg.message_text : undefined,
