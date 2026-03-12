@@ -125,7 +125,25 @@ function buildComponents(form: TemplateForm) {
     }
 
     if (form.body.trim()) {
-        components.push({ type: "BODY", text: form.body.trim() });
+        const bodyText = form.body.trim();
+        const component: any = { type: "BODY", text: bodyText };
+
+        // Find maximum variable number used, e.g., {{2}}
+        const variableMatches = bodyText.match(/\{\{(\d+)\}\}/g);
+        if (variableMatches && variableMatches.length > 0) {
+            let maxVar = 0;
+            for (const match of variableMatches) {
+                const num = parseInt(match.replace(/[^0-9]/g, ''), 10);
+                if (num > maxVar) maxVar = num;
+            }
+            if (maxVar > 0) {
+                // Generate default examples: ["Example 1", "Example 2", ...]
+                const examples = Array.from({ length: maxVar }).map((_, i) => `Sample ${i + 1}`);
+                component.example = { body_text: [examples] };
+            }
+        }
+
+        components.push(component);
     }
 
     if (form.footerEnabled && form.footer.trim()) {
