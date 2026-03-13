@@ -74,22 +74,27 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
         setTemplateVariables({});
     }, [selectedTemplate, templates]);
 
-    // Poll job status after sending (wait 3s for background job to complete)
+    // Poll job status continuously after sending
     useEffect(() => {
         if (step !== 'sending' || !jobId) return;
-        const timer = setTimeout(async () => {
+
+        const interval = setInterval(async () => {
             try {
                 const result = await api.getBulkStatus(jobId);
                 setJobResult(result);
-            } catch {
-                // ignore polling error
-            } finally {
-                setStep('result');
-                queryClient.invalidateQueries({ queryKey: ['bulk-history'] });
+                
+                if (result && result.is_complete) {
+                    clearInterval(interval);
+                    setStep('result');
+                    queryClient.invalidateQueries({ queryKey: ['bulk-history'] });
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
             }
-        }, 3000);
-        return () => clearTimeout(timer);
-    }, [step, jobId]);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [step, jobId, queryClient]);
 
     const templateVars = selectedTemplateData ? extractTemplateVariables(selectedTemplateData) : [];
     const hasVariables = templateVars.length > 0;
@@ -371,7 +376,29 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
                         <div className="text-center py-8">
                             <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
                             <h3 className="text-lg font-medium text-slate-700 mb-2">Sending Messages...</h3>
-                            <p className="text-slate-500">Sending to {totalContacts} contacts. Please wait...</p>
+                            <p className="text-slate-500 mb-2">
+                                Sending to {totalContacts} contacts. Please wait...
+                            </p>
+                            
+                            {/* Live Progress Display */}
+                            {jobResult && !jobResult.is_complete && (
+                                <div className="max-w-xs mx-auto mb-4 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                    <p className="text-sm font-medium text-blue-700">
+                                        Progress: {jobResult.total_sent + jobResult.total_failed} / {totalContacts}
+                                    </p>
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                        <div 
+                                            className="bg-blue-600 h-2.5 rounded-full" 
+                                            style={{ width: `${Math.min(100, Math.round(((jobResult.total_sent + jobResult.total_failed) / totalContacts) * 100))}%` }}
+                                        ></div>
+                                    </div>
+                                    <div className="flex justify-between text-xs mt-2 text-slate-500">
+                                        <span className="text-green-600">{jobResult.total_sent} sent</span>
+                                        <span className={jobResult.total_failed > 0 ? "text-red-600" : ""}>{jobResult.total_failed} failed</span>
+                                    </div>
+                                </div>
+                            )}
+
                             <p className="text-xs text-slate-400 mt-2">This uses rate limiting (~12 msg/sec) to comply with Meta's limits</p>
                         </div>
                     )}
