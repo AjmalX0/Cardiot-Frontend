@@ -86,7 +86,11 @@ const mapContactToConversation = (contact: WhatsAppContact): DashboardConversati
 
 // Texts that are internal placeholders — never show them as visible message body
 const PLACEHOLDER_RE = /^\[.*\]$/;
-const isPlaceholder = (t?: string | null) => !t || PLACEHOLDER_RE.test(t.trim());
+const isPlaceholder = (t?: string | null) => {
+  if (!t) return true;
+  if (t.startsWith('[Template:')) return false;
+  return PLACEHOLDER_RE.test(t.trim());
+};
 
 // File-type media that should show a download link
 const FILE_MEDIA_TYPES = new Set(['document', 'application', 'pdf', 'text']);
