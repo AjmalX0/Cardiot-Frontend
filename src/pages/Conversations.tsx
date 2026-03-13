@@ -121,7 +121,7 @@ const mapMessageToDashboard = (msg: WhatsAppMessage): DashboardMessage => {
     sender: msg.direction === 'outgoing' ? 'agent' : 'customer',
     status: msg.status as any,
     mediaUrl: resolveMediaUrl(msg.media_url),
-    mediaType: (msg.message_type === 'text' || msg.message_type === 'interactive' || msg.message_type === 'button') ? undefined : msg.message_type as any,
+    mediaType: (msg.message_type === 'text' || msg.message_type === 'interactive' || msg.message_type === 'button' || msg.message_type === 'template') ? undefined : msg.message_type as any,
     // carry original filename for caption display
     fileName: isMedia && !isPlaceholder(msg.message_text) ? msg.message_text : undefined,
   };
