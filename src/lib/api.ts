@@ -326,8 +326,13 @@ export const deleteMetaTemplate = async (name: string): Promise<any> => {
 // ========== TEMPLATE ASSET MANAGEMENT ==========
 
 export const uploadTemplateAsset = async (formData: FormData): Promise<any> => {
-    // Don't set Content-Type header - let axios/browser handle it for FormData
-    const response = await api.post('/api/template-assets/upload', formData);
+    // For FormData uploads, we need to let the browser set the Content-Type
+    // Create a new request that explicitly removes the default application/json header
+    const response = await axios.post(`${API_URL}/api/template-assets/upload`, formData, {
+        headers: {
+            'Content-Type': undefined,  // Remove the default header
+        }
+    });
     return response.data;
 };
 
