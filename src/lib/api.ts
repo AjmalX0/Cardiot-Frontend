@@ -323,4 +323,71 @@ export const deleteMetaTemplate = async (name: string): Promise<any> => {
     return response.data;
 };
 
+// ========== TEMPLATE ASSET MANAGEMENT ==========
+
+export const uploadTemplateAsset = async (formData: FormData): Promise<any> => {
+    // Don't set Content-Type header - let axios/browser handle it for FormData
+    const response = await api.post('/api/template-assets/upload', formData);
+    return response.data;
+};
+
+export const getTemplateAssets = async (assetType?: string): Promise<any[]> => {
+    const response = await api.get('/api/template-assets', {
+        params: assetType ? { assetType } : undefined
+    });
+    return response.data.assets || [];
+};
+
+export const getTemplateAsset = async (assetId: number): Promise<any> => {
+    const response = await api.get(`/api/template-assets/${assetId}`);
+    return response.data.media;
+};
+
+export const getTemplateAssetByName = async (assetName: string): Promise<any> => {
+    const response = await api.post('/api/template-assets/by-name', { assetName });
+    return response.data.media;
+};
+
+export const deleteTemplateAsset = async (assetId: number): Promise<any> => {
+    const response = await api.delete(`/api/template-assets/${assetId}`);
+    return response.data;
+};
+
+// ========== TEMPLATE SUBMISSION (Meta Approval) ==========
+
+export const submitTemplate = async (data: {
+    templateName: string;
+    templateId?: string;
+    mediaAssetId?: number;
+    headerFormat?: string;
+}): Promise<any> => {
+    const response = await api.post('/api/template-submissions/submit', data);
+    return response.data;
+};
+
+export const getTemplateSubmissions = async (params?: { status?: string; templateName?: string }): Promise<any[]> => {
+    const response = await api.get('/api/template-submissions', { params });
+    return response.data.submissions || [];
+};
+
+export const getTemplateSubmission = async (submissionId: number): Promise<any> => {
+    const response = await api.get(`/api/template-submissions/${submissionId}`);
+    return response.data.submission;
+};
+
+export const getTemplateStatus = async (templateName: string): Promise<any> => {
+    const response = await api.get(`/api/template-submissions/template/${templateName}/status`);
+    return response.data;
+};
+
+export const requestApproval = async (submissionId: number): Promise<any> => {
+    const response = await api.post(`/api/template-submissions/${submissionId}/request-approval`);
+    return response.data;
+};
+
+export const deleteTemplateSubmission = async (submissionId: number): Promise<any> => {
+    const response = await api.delete(`/api/template-submissions/${submissionId}`);
+    return response.data;
+};
+
 export default api;
