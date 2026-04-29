@@ -126,15 +126,15 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with the media handle
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example
+            // But the example might just be text, not the actual media reference
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // If we have a selected media asset and its handle, add the example
-            if (form.headerMediaAssetId && mediaHandle) {
-                headerComponent.example = {
-                    header_handle: [mediaHandle]
-                };
-            }
+            // Meta requires an example for media headers, but it might just be a placeholder
+            // The actual media selection happens when sending the message, not in the template
+            headerComponent.example = {
+                header_text: ["Sample Header"]
+            };
             
             components.push(headerComponent);
         }
@@ -441,16 +441,25 @@ const TemplateManager = () => {
         setSubmitting(true);
         setSubmitResult(null);
         try {
-            // If media is selected, fetch its details to get the Meta handle
+            // If media is selected, fetch its details to get the Meta media ID or handle
             let mediaHandle: string | null = null;
+            let mediaAssetData: any = null;
             if (form.headerMediaAssetId) {
                 try {
-                    const mediaAsset = await (api as any).getTemplateAsset(form.headerMediaAssetId);
-                    mediaHandle = mediaAsset.handle || mediaAsset.meta_media_id;
+                    mediaAssetData = await (api as any).getTemplateAsset(form.headerMediaAssetId);
+                    // Use handle if available, otherwise use meta_media_id
+                    mediaHandle = mediaAssetData.handle || mediaAssetData.meta_media_id;
                     if (!mediaHandle) {
-                        return alert("Media asset missing handle - please re-upload");
+                        return alert("Media asset is missing ID/handle - please re-upload");
                     }
+                    console.log("📦 Media Asset:", { 
+                        id: mediaAssetData.id, 
+                        handle: mediaAssetData.handle, 
+                        meta_media_id: mediaAssetData.meta_media_id,
+                        using: mediaHandle 
+                    });
                 } catch (err) {
+                    console.error("Media fetch error:", err);
                     return alert("Failed to retrieve media asset details");
                 }
             }
