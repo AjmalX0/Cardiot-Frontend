@@ -126,20 +126,14 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with a URL
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with a handle/URL
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // Meta expects example with a handle for IMAGE/VIDEO/DOCUMENT headers
-            if (form.headerMediaAssetId && mediaHandle) {
-                headerComponent.example = {
-                    header_handle: [mediaHandle]  // Use header_handle instead of header_url
-                };
-            } else if (form.headerMediaAssetId) {
-                // Fallback: provide placeholder handle
-                headerComponent.example = {
-                    header_handle: [""]
-                };
-            }
+            // Meta requires example field with at least one valid value
+            const exampleValue = mediaHandle || "placeholder";
+            headerComponent.example = {
+                header_handle: [exampleValue]
+            };
             
             components.push(headerComponent);
         }
