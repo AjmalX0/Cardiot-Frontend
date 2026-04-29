@@ -129,17 +129,15 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
             // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with a URL
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // Meta expects example with a URL to the media
-            // If we have media selected, construct a URL (if mediaHandle is actually a URL)
-            // Otherwise provide a placeholder that users will replace when sending
+            // Meta expects example with a handle for IMAGE/VIDEO/DOCUMENT headers
             if (form.headerMediaAssetId && mediaHandle) {
                 headerComponent.example = {
-                    header_url: [mediaHandle]  // mediaHandle might be a URL or we need to construct it
+                    header_handle: [mediaHandle]  // Use header_handle instead of header_url
                 };
             } else if (form.headerMediaAssetId) {
-                // Fallback: provide placeholder URL
+                // Fallback: provide placeholder handle
                 headerComponent.example = {
-                    header_url: ["https://example.com/image.jpg"]
+                    header_handle: [""]
                 };
             }
             
