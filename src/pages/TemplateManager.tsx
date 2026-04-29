@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import {
     Plus, Trash2, Send, Eye, Loader2, CheckCircle, XCircle,
     Clock, AlertTriangle, RefreshCw, ChevronDown, ChevronUp,
-    FileText, Type, Image, Video, Phone, Link, List, Copy, Zap
+    FileText, Type, Image, Video, Phone, Link, List, Copy, Zap, Upload, Check
 } from "lucide-react";
 import * as api from "../lib/api";
+import MediaUploadModal from "../components/MediaUploadModal";
+import MediaAssetManager from "../components/MediaAssetManager";
 
 // ─── ToggleSwitch component ───────────────────────────────────────────────────
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
@@ -46,6 +48,8 @@ interface TemplateForm {
     headerEnabled: boolean;
     headerFormat: HeaderFormat;
     headerText: string;
+    headerMediaAssetId?: number;
+    headerMediaAssetName?: string;
     body: string;
     footerEnabled: boolean;
     footer: string;
@@ -104,6 +108,8 @@ const EMPTY_FORM: TemplateForm = {
     headerEnabled: false,
     headerFormat: "TEXT",
     headerText: "",
+    headerMediaAssetId: undefined,
+    headerMediaAssetName: undefined,
     body: "",
     footerEnabled: false,
     footer: "",
@@ -191,15 +197,15 @@ function TemplatePreview({ form }: { form: TemplateForm }) {
                             <span>{form.headerText || <span className="text-slate-300 italic">Header text…</span>}</span>
                         ) : form.headerFormat === "IMAGE" ? (
                             <div className="bg-slate-100 rounded-lg h-24 flex items-center justify-center text-slate-400 text-xs gap-1">
-                                <Image className="w-4 h-4" /> Image will appear here
+                                <Image className="w-4 h-4" /> {form.headerMediaAssetName || "Select image…"}
                             </div>
                         ) : form.headerFormat === "VIDEO" ? (
                             <div className="bg-slate-100 rounded-lg h-24 flex items-center justify-center text-slate-400 text-xs gap-1">
-                                <Video className="w-4 h-4" /> Video will appear here
+                                <Video className="w-4 h-4" /> {form.headerMediaAssetName || "Select video…"}
                             </div>
                         ) : (
                             <div className="bg-slate-100 rounded-lg p-3 flex items-center gap-2 text-xs text-slate-500">
-                                <FileText className="w-4 h-4" /> Document will appear here
+                                <FileText className="w-4 h-4" /> {form.headerMediaAssetName || "Select document…"}
                             </div>
                         )}
                     </div>
@@ -355,7 +361,7 @@ function TemplateCard({ template, onDelete }: { template: MetaTemplate; onDelete
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 const TemplateManager = () => {
-    const [tab, setTab] = useState<"list" | "create">("list");
+    const [tab, setTab] = useState<"list" | "create" | "assets">("list");
     const [templates, setTemplates] = useState<MetaTemplate[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState("ALL");
@@ -363,6 +369,8 @@ const TemplateManager = () => {
     const [submitting, setSubmitting] = useState(false);
     const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string } | null>(null);
     const [charCount, setCharCount] = useState(0);
+    const [showMediaUpload, setShowMediaUpload] = useState(false);
+    const [mediaUploadType, setMediaUploadType] = useState<'IMAGE' | 'VIDEO' | 'DOCUMENT'>('IMAGE');
 
     const fetchTemplates = async () => {
         setLoading(true);
@@ -488,7 +496,25 @@ const TemplateManager = () => {
                 >
                     <span className="flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Create New Template</span>
                 </button>
+                <button
+                    onClick={() => setTab("assets")}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "assets" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+                >
+                    <span className="flex items-center gap-1.5"><Image className="w-3.5 h-3.5" /> Media Assets</span>
+                </button>
             </div>
+
+            {/* Media Upload Modal */}
+            <MediaUploadModal
+                isOpen={showMediaUpload}
+                onClose={() => setShowMediaUpload(false)}
+                assetType={mediaUploadType}
+                onSuccess={(media) => {
+                    setField("headerMediaAssetId", media.id);
+                    setField("headerMediaAssetName", media.asset_name);
+                    setShowMediaUpload(false);
+                }}
+            />
 
             {/* ── LIST TAB ── */}
             {tab === "list" && (
@@ -656,9 +682,40 @@ const TemplateManager = () => {
                                         />
                                     )}
                                     {form.headerFormat !== "TEXT" && (
-                                        <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                            📎 You'll need to provide a sample {form.headerFormat.toLowerCase()} URL/handle when sending this template. The {form.headerFormat.toLowerCase()} must be hosted on Meta's servers.
-                                        </p>
+                                        <div className="space-y-2">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setMediaUploadType(form.headerFormat as 'IMAGE' | 'VIDEO' | 'DOCUMENT');
+                                                        setShowMediaUpload(true);
+                                                    }}
+                                                    className="flex-1 px-3 py-2 text-xs font-semibold border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5"
+                                                >
+                                                    <Upload className="w-3.5 h-3.5" />
+                                                    Upload {form.headerFormat}
+                                                </button>
+                                            </div>
+                                            {form.headerMediaAssetName && (
+                                                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                                                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                    <div className="text-xs text-emerald-700">
+                                                        <span className="font-semibold">Selected:</span> {form.headerMediaAssetName}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setField("headerMediaAssetId", undefined);
+                                                            setField("headerMediaAssetName", undefined);
+                                                        }}
+                                                        className="ml-auto px-2 py-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            )}
+                                            <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                📎 Upload your {form.headerFormat.toLowerCase()} using the upload button above. It will be stored on Meta's servers for template use.
+                                            </p>
+                                        </div>
                                     )}
                                 </>
                             )}
@@ -840,6 +897,20 @@ const TemplateManager = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ── ASSETS TAB ── */}
+            {tab === "assets" && (
+                <div>
+                    <MediaAssetManager
+                        onSelectAsset={(asset) => {
+                            setField("headerMediaAssetId", asset.id);
+                            setField("headerMediaAssetName", asset.asset_name);
+                            setTab("create");
+                        }}
+                        selectable={true}
+                    />
                 </div>
             )}
         </div>
