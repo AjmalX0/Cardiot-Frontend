@@ -126,15 +126,22 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example
-            // But the example might just be text, not the actual media reference
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with a URL
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // Meta requires an example for media headers, but it might just be a placeholder
-            // The actual media selection happens when sending the message, not in the template
-            headerComponent.example = {
-                header_text: ["Sample Header"]
-            };
+            // Meta expects example with a URL to the media
+            // If we have media selected, construct a URL (if mediaHandle is actually a URL)
+            // Otherwise provide a placeholder that users will replace when sending
+            if (form.headerMediaAssetId && mediaHandle) {
+                headerComponent.example = {
+                    header_url: [mediaHandle]  // mediaHandle might be a URL or we need to construct it
+                };
+            } else if (form.headerMediaAssetId) {
+                // Fallback: provide placeholder URL
+                headerComponent.example = {
+                    header_url: ["https://example.com/image.jpg"]
+                };
+            }
             
             components.push(headerComponent);
         }
