@@ -34,8 +34,12 @@ const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
             formData.append('assetName', assetName);
             formData.append('assetType', assetType);
 
-            const response = await api.uploadTemplateAsset(formData);
-            return response.data;
+            try {
+                const response = await api.uploadTemplateAsset(formData);
+                return response.data || response;
+            } catch (error: any) {
+                throw new Error(error?.response?.data?.error || error?.message || 'Upload failed');
+            }
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['template-assets'] });
