@@ -126,7 +126,18 @@ function buildComponents(form: TemplateForm) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            components.push({ type: "HEADER", format: form.headerFormat });
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example
+            const headerComponent: any = { type: "HEADER", format: form.headerFormat };
+            
+            // If we have a selected media asset, we need to add an example
+            if (form.headerMediaAssetId) {
+                // The example should reference the media that will be provided when sending
+                headerComponent.example = {
+                    header_handle: [form.headerMediaAssetName || "sample"]
+                };
+            }
+            
+            components.push(headerComponent);
         }
     }
 
@@ -422,6 +433,11 @@ const TemplateManager = () => {
         if (!form.name.trim()) return alert("Template name is required");
         if (!/^[a-z0-9_]+$/.test(form.name)) return alert("Name must be lowercase letters, numbers, and underscores only");
         if (!form.body.trim()) return alert("Body text is required");
+        
+        // Validate media selection if header is enabled with non-TEXT format
+        if (form.headerEnabled && form.headerFormat !== "TEXT" && !form.headerMediaAssetId) {
+            return alert(`Please upload or select a ${form.headerFormat} file for the header`);
+        }
 
         setSubmitting(true);
         setSubmitResult(null);
