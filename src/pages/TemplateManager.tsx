@@ -119,21 +119,20 @@ const EMPTY_FORM: TemplateForm = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function buildComponents(form: TemplateForm) {
+function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
     const components: any[] = [];
 
     if (form.headerEnabled) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with the media handle
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // If we have a selected media asset, we need to add an example
-            if (form.headerMediaAssetId) {
-                // The example should reference the media that will be provided when sending
+            // If we have a selected media asset and its handle, add the example
+            if (form.headerMediaAssetId && mediaHandle) {
                 headerComponent.example = {
-                    header_handle: [form.headerMediaAssetName || "sample"]
+                    header_handle: [mediaHandle]
                 };
             }
             
@@ -442,7 +441,21 @@ const TemplateManager = () => {
         setSubmitting(true);
         setSubmitResult(null);
         try {
-            const components = buildComponents(form);
+            // If media is selected, fetch its details to get the Meta handle
+            let mediaHandle: string | null = null;
+            if (form.headerMediaAssetId) {
+                try {
+                    const mediaAsset = await (api as any).getTemplateAsset(form.headerMediaAssetId);
+                    mediaHandle = mediaAsset.handle || mediaAsset.meta_media_id;
+                    if (!mediaHandle) {
+                        return alert("Media asset missing handle - please re-upload");
+                    }
+                } catch (err) {
+                    return alert("Failed to retrieve media asset details");
+                }
+            }
+            
+            const components = buildComponents(form, mediaHandle);
             await (api as any).createMetaTemplate({
                 name: form.name,
                 category: form.category,
