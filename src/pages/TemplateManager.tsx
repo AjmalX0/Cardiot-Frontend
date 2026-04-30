@@ -126,13 +126,13 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires an example with a handle/URL
+            // For IMAGE, VIDEO, DOCUMENT - Meta requires example with media handle ID
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // Meta requires example field with at least one valid value
-            const exampleValue = mediaHandle || "placeholder";
+            // Meta requires example field with the media handle ID from their upload response
+            const handleValue = mediaHandle || "placeholder";
             headerComponent.example = {
-                header_handle: [exampleValue]
+                header_handle: [handleValue]
             };
             
             components.push(headerComponent);
