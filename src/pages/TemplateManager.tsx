@@ -126,14 +126,11 @@ function buildComponents(form: TemplateForm, mediaHandle?: string | null) {
         if (form.headerFormat === "TEXT" && form.headerText.trim()) {
             components.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
         } else if (form.headerFormat !== "TEXT") {
-            // For IMAGE, VIDEO, DOCUMENT - Meta requires example with media handle ID
+            // For IMAGE, VIDEO, DOCUMENT - Meta might need just the handle value, not in an array
             const headerComponent: any = { type: "HEADER", format: form.headerFormat };
             
-            // Meta requires example field with the media handle ID from their upload response
-            const handleValue = mediaHandle || "placeholder";
-            headerComponent.example = {
-                header_handle: [handleValue]
-            };
+            // Try sending handle as direct value first, not wrapped in array
+            headerComponent.example = mediaHandle || "placeholder";
             
             components.push(headerComponent);
         }
