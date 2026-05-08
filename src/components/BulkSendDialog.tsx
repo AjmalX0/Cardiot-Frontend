@@ -42,6 +42,7 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
     const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
     const [selectedTemplate, setSelectedTemplate] = useState('');
     const [selectedTemplateData, setSelectedTemplateData] = useState<any>(null);
+    const [selectedMediaAssetId, setSelectedMediaAssetId] = useState<number | null>(null);
     const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
     const [jobId, setJobId] = useState<number | null>(null);
     const [jobResult, setJobResult] = useState<any>(null);
@@ -67,11 +68,13 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
         if (!selectedTemplate || !templates.length) {
             setSelectedTemplateData(null);
             setTemplateVariables({});
+            setSelectedMediaAssetId(null);
             return;
         }
         const tpl = templates.find((t: any) => t.name === selectedTemplate);
         setSelectedTemplateData(tpl || null);
         setTemplateVariables({});
+        setSelectedMediaAssetId(null);
     }, [selectedTemplate, templates]);
 
     // Poll job status continuously after sending
@@ -100,6 +103,17 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
     const hasVariables = templateVars.length > 0;
     const allVariablesFilled = templateVars.every(v => templateVariables[String(v.index)]?.trim());
 
+    const mediaHeader = selectedTemplateData?.components?.find(
+        (c: any) => c.type === 'HEADER' && c.format && c.format !== 'TEXT'
+    );
+    const mediaHeaderFormat = mediaHeader?.format || null;
+
+    const { data: mediaAssets = [] } = useQuery({
+        queryKey: ['template-assets', mediaHeaderFormat],
+        queryFn: () => api.getTemplateAssets(mediaHeaderFormat || undefined),
+        enabled: isOpen && !!mediaHeaderFormat
+    });
+
     // Send bulk mutation
     const sendMutation = useMutation({
         mutationFn: api.sendBulk,
@@ -117,6 +131,10 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
     const handleNext = () => {
         if (!selectedTemplate) { setError('Please select a template'); return; }
         if (!selectedSegment) { setError('Please select a segment'); return; }
+        if (mediaHeaderFormat && !selectedMediaAssetId) {
+            setError(`Please select a ${mediaHeaderFormat} asset for the header`);
+            return;
+        }
         setError('');
         if (hasVariables) {
             setStep('variables');
@@ -128,11 +146,36 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
     const doSend = () => {
         const components: any[] = [];
 
+        if (mediaHeaderFormat) {
+            if (!selectedMediaAssetId) {
+                setError(`Please select a ${mediaHeaderFormat} asset for the header`);
+                return;
+            }
+
+            const asset = mediaAssets.find((a: any) => a.id === selectedMediaAssetId);
+            if (!asset?.meta_media_id) {
+                setError('Selected media asset is missing a public URL. Please re-upload it.');
+                return;
+            }
+
+            const format = mediaHeaderFormat.toLowerCase();
+            const param: any = { type: format };
+            param[format] = { link: asset.meta_media_id };
+            if (format === 'document' && asset.file_name) {
+                param.document.filename = asset.file_name;
+            }
+
+            components.push({
+                type: 'header',
+                parameters: [param]
+            });
+        }
+
         if (hasVariables) {
             const bodyVars = templateVars.filter(v => v.component === 'BODY');
             const headerVars = templateVars.filter(v => v.component === 'HEADER');
 
-            if (headerVars.length > 0) {
+            if (headerVars.length > 0 && !mediaHeaderFormat) {
                 components.push({
                     type: 'header',
                     parameters: headerVars.map(v => ({
@@ -169,6 +212,7 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
             templateName: selectedTemplate,
             languageCode: selectedTemplateData?.language || 'en_US',
             components,
+            mediaAssetId: selectedMediaAssetId || undefined
         });
     };
 
@@ -178,6 +222,7 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
         setSelectedTemplate('');
         setSelectedTemplateData(null);
         setTemplateVariables({});
+        setSelectedMediaAssetId(null);
         setJobId(null);
         setJobResult(null);
         setTotalContacts(0);
@@ -277,6 +322,31 @@ const BulkSendDialog: React.FC<BulkSendDialogProps> = ({ isOpen, onClose }) => {
                                     </div>
                                 )}
                             </div>
+
+                            {mediaHeaderFormat && (
+                                <div className="mb-5">
+                                    <label className="label">Select {mediaHeaderFormat} Header Asset *</label>
+                                    {mediaAssets.length === 0 ? (
+                                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                            <AlertCircle className="w-4 h-4 inline mr-2" />
+                                            No {mediaHeaderFormat} assets available. Upload one in Templates → Media Assets.
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={selectedMediaAssetId || ''}
+                                            onChange={(e) => setSelectedMediaAssetId(Number(e.target.value))}
+                                            className="input-field"
+                                        >
+                                            <option value="">-- Choose a media asset --</option>
+                                            {mediaAssets.map((asset: any) => (
+                                                <option key={asset.id} value={asset.id}>
+                                                    {asset.asset_name} ({asset.file_name})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Segment Selection */}
                             <div className="mb-5">

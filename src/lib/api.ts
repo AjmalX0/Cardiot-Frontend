@@ -213,6 +213,7 @@ export const sendBulk = async (data: {
     templateName: string;
     languageCode?: string;
     components?: any[];
+    mediaAssetId?: number;
 }): Promise<any> => {
     const response = await api.post('/api/bulk/send', data);
     return response.data;
