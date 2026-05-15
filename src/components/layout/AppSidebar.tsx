@@ -1,143 +1,162 @@
+// components/ImageResizer.tsx
+
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "../../lib/AuthContext";
-import {
-  LayoutDashboard,
-  MessageSquare,
-  Contact,
-  Users,
-  UserCheck,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  Menu,
-  MapPin,
-  Sparkles,
-  FileSpreadsheet,
-} from "lucide-react";
+import { Download, Upload, Image as ImageIcon } from "lucide-react";
 
-interface SidebarContentProps {
-  collapsed: boolean;
-  setCollapsed?: (collapsed: boolean) => void;
-  isMobile?: boolean;
-}
+export default function ImageResizer() {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [processedBlob, setProcessedBlob] = useState<Blob | null>(null);
+  const [loading, setLoading] = useState(false);
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: MessageSquare, label: "Conversations", path: "/conversations" },
-  { icon: Contact, label: "Contacts", path: "/contacts" },
-  { icon: Users, label: "Segments", path: "/segments" },
-  { icon: UserCheck, label: "Agents", path: "/agents" },
-  { icon: MapPin, label: "Sources", path: "/sources" },
-  { icon: Sparkles, label: "Templates", path: "/templates" },
-  { icon: FileSpreadsheet, label: "CSV Formatter", path: "https://cardiot-csv-formater.vercel.app/" },
-];
+  const resizeImage = async (file: File) => {
+    setLoading(true);
 
-export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: SidebarContentProps) {
-  const location = useLocation();
-  const { signOut } = useAuth();
+    const img = new Image();
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+    };
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+
+      // WhatsApp recommended size
+      const width = 1080;
+      const height = 1350;
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) return;
+
+      // White background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw resized image
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+
+          const url = URL.createObjectURL(blob);
+
+          setPreview(url);
+          setProcessedBlob(blob);
+          setLoading(false);
+        },
+        "image/jpeg",
+        0.8 // compression quality
+      );
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    await resizeImage(file);
+  };
+
+  const downloadImage = () => {
+    if (!processedBlob) return;
+
+    const url = URL.createObjectURL(processedBlob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "whatsapp-template-image.jpg";
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Header / Logo */}
-      <div className={`h-16 flex items-center ${collapsed ? 'justify-center' : 'justify-between px-4'} border-b border-slate-100`}>
-        {!collapsed && (
-          <div className="flex items-center gap-2">
+    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+          <ImageIcon className="w-6 h-6 text-blue-600" />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800">
+            WhatsApp Image Optimizer
+          </h2>
+
+          <p className="text-sm text-slate-500">
+            Resize high-quality images for WhatsApp templates
+          </p>
+        </div>
+      </div>
+
+      {/* Upload */}
+      <label className="border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 transition">
+        <Upload className="w-10 h-10 text-slate-400 mb-3" />
+
+        <span className="font-medium text-slate-700">
+          Upload High Quality Image
+        </span>
+
+        <span className="text-sm text-slate-500 mt-1">
+          JPG, PNG, WEBP supported
+        </span>
+
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFile}
+        />
+      </label>
+
+      {/* Loader */}
+      {loading && (
+        <div className="mt-6 text-center text-blue-600 font-medium">
+          Processing Image...
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && (
+        <div className="mt-6">
+          <div className="rounded-2xl overflow-hidden border border-slate-200">
             <img
-              src="/cardiot.webp"
-              alt="Logo"
-              className="w-8 h-8 object-contain"
+              src={preview}
+              alt="Preview"
+              className="w-full object-cover"
             />
-            <div className="flex flex-col">
-              <span className="font-semibold text-slate-800 text-sm leading-tight">Cardiot CRM</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">DASHBOARD</span>
-            </div>
           </div>
-        )}
-        {/* Collapse button - only show if setCollapsed provided and not mobile */}
-        {setCollapsed && !isMobile && (
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
-          >
-            {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-        )}
-      </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          const isExternal = item.path.startsWith("http");
+          <div className="mt-4 flex items-center justify-between">
+            <div>
+              <p className="font-medium text-slate-700">
+                Optimized Successfully
+              </p>
 
-          const content = (
-            <>
-              <item.icon
-                className={`w-4 h-4 transition-colors ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
-                  }`}
-              />
-              {!collapsed && <span>{item.label}</span>}
-              {isActive && !collapsed && (
-                <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-blue-600" />
-              )}
-            </>
-          );
+              <p className="text-sm text-slate-500">
+                1080 × 1350 • JPG • Compressed
+              </p>
+            </div>
 
-          const className = `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-200 group relative ${isActive
-            ? "bg-slate-100 text-blue-600 font-medium"
-            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-            } ${collapsed ? 'justify-center' : ''}`;
-
-          if (isExternal) {
-            return (
-              <a
-                key={item.path}
-                href={item.path}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={className}
-              >
-                {content}
-              </a>
-            );
-          }
-
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={className}
+            <button
+              onClick={downloadImage}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl transition"
             >
-              {content}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User Profile / Logout */}
-      <div className="p-3 border-t border-slate-100">
-        <button
-          onClick={() => signOut()}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors ${collapsed ? 'justify-center' : ''}`}
-        >
-          <LogOut className="w-4 h-4" />
-          {!collapsed && <span className="text-sm font-medium">Logout</span>}
-        </button>
-      </div>
+              <Download className="w-4 h-4" />
+              Download
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  );
-}
-
-export function AppSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
-
-  return (
-    <aside
-      className={`relative h-full bg-white border-r border-slate-200 hidden md:flex flex-col transition-all duration-300 z-20 ${collapsed ? "w-16" : "w-64"
-        }`}
-    >
-      <SidebarContent collapsed={collapsed} setCollapsed={setCollapsed} />
-    </aside>
   );
 }
