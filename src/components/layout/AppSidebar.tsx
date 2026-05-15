@@ -1,162 +1,191 @@
-// components/ImageResizer.tsx
+// src/components/layout/AppSidebar.tsx
 
 import { useState } from "react";
-import { Download, Upload, Image as ImageIcon } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../../lib/AuthContext";
 
-export default function ImageResizer() {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [processedBlob, setProcessedBlob] = useState<Blob | null>(null);
-  const [loading, setLoading] = useState(false);
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Contact,
+  Users,
+  UserCheck,
+  ChevronLeft,
+  LogOut,
+  Menu,
+  MapPin,
+  Sparkles,
+  FileSpreadsheet,
+} from "lucide-react";
 
-  const resizeImage = async (file: File) => {
-    setLoading(true);
+interface SidebarContentProps {
+  collapsed: boolean;
+  setCollapsed?: (collapsed: boolean) => void;
+  isMobile?: boolean;
+}
 
-    const img = new Image();
-    const reader = new FileReader();
+const navItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: MessageSquare, label: "Conversations", path: "/conversations" },
+  { icon: Contact, label: "Contacts", path: "/contacts" },
+  { icon: Users, label: "Segments", path: "/segments" },
+  { icon: UserCheck, label: "Agents", path: "/agents" },
+  { icon: MapPin, label: "Sources", path: "/sources" },
+  { icon: Sparkles, label: "Templates", path: "/templates" },
 
-    reader.onload = (e) => {
-      img.src = e.target?.result as string;
-    };
+  // External Tool
+  {
+    icon: FileSpreadsheet,
+    label: "CSV Formatter",
+    path: "https://cardiot-csv-formater.vercel.app/",
+  },
+];
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-
-      // WhatsApp recommended size
-      const width = 1080;
-      const height = 1350;
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) return;
-
-      // White background
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw resized image
-      ctx.drawImage(img, 0, 0, width, height);
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return;
-
-          const url = URL.createObjectURL(blob);
-
-          setPreview(url);
-          setProcessedBlob(blob);
-          setLoading(false);
-        },
-        "image/jpeg",
-        0.8 // compression quality
-      );
-    };
-
-    reader.readAsDataURL(file);
-  };
-
-  const handleFile = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-
-    if (!file) return;
-
-    await resizeImage(file);
-  };
-
-  const downloadImage = () => {
-    if (!processedBlob) return;
-
-    const url = URL.createObjectURL(processedBlob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "whatsapp-template-image.jpg";
-    a.click();
-
-    URL.revokeObjectURL(url);
-  };
+export function SidebarContent({
+  collapsed,
+  setCollapsed,
+  isMobile = false,
+}: SidebarContentProps) {
+  const location = useLocation();
+  const { signOut } = useAuth();
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-          <ImageIcon className="w-6 h-6 text-blue-600" />
-        </div>
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div
+        className={`h-16 flex items-center ${
+          collapsed ? "justify-center" : "justify-between px-4"
+        } border-b border-slate-100`}
+      >
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            <img
+              src="/cardiot.webp"
+              alt="Logo"
+              className="w-8 h-8 object-contain"
+            />
 
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800">
-            WhatsApp Image Optimizer
-          </h2>
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-800 text-sm leading-tight">
+                Cardiot CRM
+              </span>
 
-          <p className="text-sm text-slate-500">
-            Resize high-quality images for WhatsApp templates
-          </p>
-        </div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+                DASHBOARD
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Collapse Button */}
+        {setCollapsed && !isMobile && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+          >
+            {collapsed ? (
+              <Menu className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Upload */}
-      <label className="border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 transition">
-        <Upload className="w-10 h-10 text-slate-400 mb-3" />
+      {/* Navigation */}
+      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+        {navItems.map((item) => {
+          const isExternal = item.path.startsWith("http");
 
-        <span className="font-medium text-slate-700">
-          Upload High Quality Image
-        </span>
+          const isActive =
+            !isExternal && location.pathname === item.path;
 
-        <span className="text-sm text-slate-500 mt-1">
-          JPG, PNG, WEBP supported
-        </span>
+          const content = (
+            <>
+              <item.icon
+                className={`w-4 h-4 transition-colors ${
+                  isActive
+                    ? "text-blue-600"
+                    : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
 
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFile}
-        />
-      </label>
+              {!collapsed && <span>{item.label}</span>}
 
-      {/* Loader */}
-      {loading && (
-        <div className="mt-6 text-center text-blue-600 font-medium">
-          Processing Image...
-        </div>
-      )}
+              {isActive && !collapsed && (
+                <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-blue-600" />
+              )}
+            </>
+          );
 
-      {/* Preview */}
-      {preview && (
-        <div className="mt-6">
-          <div className="rounded-2xl overflow-hidden border border-slate-200">
-            <img
-              src={preview}
-              alt="Preview"
-              className="w-full object-cover"
-            />
-          </div>
+          const className = `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-200 group relative ${
+            isActive
+              ? "bg-slate-100 text-blue-600 font-medium"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          } ${collapsed ? "justify-center" : ""}`;
 
-          <div className="mt-4 flex items-center justify-between">
-            <div>
-              <p className="font-medium text-slate-700">
-                Optimized Successfully
-              </p>
+          // External Links
+          if (isExternal) {
+            return (
+              <a
+                key={item.path}
+                href={item.path}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={className}
+              >
+                {content}
+              </a>
+            );
+          }
 
-              <p className="text-sm text-slate-500">
-                1080 × 1350 • JPG • Compressed
-              </p>
-            </div>
-
-            <button
-              onClick={downloadImage}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl transition"
+          // Internal Routes
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={className}
             >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
-          </div>
-        </div>
-      )}
+              {content}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Logout */}
+      <div className="p-3 border-t border-slate-100">
+        <button
+          onClick={() => signOut()}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors ${
+            collapsed ? "justify-center" : ""
+          }`}
+        >
+          <LogOut className="w-4 h-4" />
+
+          {!collapsed && (
+            <span className="text-sm font-medium">
+              Logout
+            </span>
+          )}
+        </button>
+      </div>
     </div>
+  );
+}
+
+export function AppSidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <aside
+      className={`relative h-full bg-white border-r border-slate-200 hidden md:flex flex-col transition-all duration-300 z-20 ${
+        collapsed ? "w-16" : "w-64"
+      }`}
+    >
+      <SidebarContent
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+      />
+    </aside>
   );
 }
