@@ -16,6 +16,7 @@ import {
   MapPin,
   Sparkles,
   FileSpreadsheet,
+  ImageIcon,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -32,6 +33,13 @@ const navItems = [
   { icon: UserCheck, label: "Agents", path: "/agents" },
   { icon: MapPin, label: "Sources", path: "/sources" },
   { icon: Sparkles, label: "Templates", path: "/templates" },
+
+  // NEW IMAGE RESIZER
+  {
+    icon: ImageIcon,
+    label: "Image Resizer",
+    path: "/image-resizer",
+  },
 
   // External Tool
   {
