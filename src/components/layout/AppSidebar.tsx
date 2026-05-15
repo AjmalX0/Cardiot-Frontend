@@ -13,6 +13,7 @@ import {
   Menu,
   MapPin,
   Sparkles,
+  FileSpreadsheet,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -29,6 +30,7 @@ const navItems = [
   { icon: UserCheck, label: "Agents", path: "/agents" },
   { icon: MapPin, label: "Sources", path: "/sources" },
   { icon: Sparkles, label: "Templates", path: "/templates" },
+  { icon: FileSpreadsheet, label: "CSV Formatter", path: "https://cardiot-csv-formater.vercel.app/" },
 ];
 
 export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: SidebarContentProps) {
@@ -67,15 +69,10 @@ export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: Si
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-200 group relative ${isActive
-                ? "bg-slate-100 text-blue-600 font-medium"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                } ${collapsed ? 'justify-center' : ''}`}
-            >
+          const isExternal = item.path.startsWith("http");
+
+          const content = (
+            <>
               <item.icon
                 className={`w-4 h-4 transition-colors ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
                   }`}
@@ -84,6 +81,35 @@ export function SidebarContent({ collapsed, setCollapsed, isMobile = false }: Si
               {isActive && !collapsed && (
                 <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-blue-600" />
               )}
+            </>
+          );
+
+          const className = `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-200 group relative ${isActive
+            ? "bg-slate-100 text-blue-600 font-medium"
+            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            } ${collapsed ? 'justify-center' : ''}`;
+
+          if (isExternal) {
+            return (
+              <a
+                key={item.path}
+                href={item.path}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={className}
+              >
+                {content}
+              </a>
+            );
+          }
+
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={className}
+            >
+              {content}
             </Link>
           );
         })}
